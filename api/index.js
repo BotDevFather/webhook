@@ -2,11 +2,27 @@ const express = require("express");
 const fetch = require("node-fetch");
 
 const app = express();
+
+// ✅ CORS MIDDLEWARE (VERY IMPORTANT)
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // 🔥 HANDLE PREFLIGHT
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
 app.use(express.json());
 
 let store = {};
 
-// ⏱ BACKGROUND CHECK
+
+// ⏱ BACKGROUND CHECK (WORKS ON RENDER ✅)
 setInterval(async () => {
   const now = Date.now();
 
@@ -48,7 +64,7 @@ app.post("/api", async (req, res) => {
     return res.status(400).json({ error: "Missing session_id" });
   }
 
-  // START
+  // 🚀 START
   if (action === "start") {
     store[session_id] = {
       user_id,
@@ -60,7 +76,7 @@ app.post("/api", async (req, res) => {
     return res.json({ status: "started" });
   }
 
-  // PROGRESS
+  // ⏱ PROGRESS
   if (action === "progress") {
     if (store[session_id]) {
       store[session_id].watch_ms = watch_ms;
@@ -70,7 +86,7 @@ app.post("/api", async (req, res) => {
     return res.json({ status: "updated" });
   }
 
-  // COMPLETE
+  // ✅ COMPLETE
   if (action === "complete") {
     let data = store[session_id];
 
@@ -100,7 +116,7 @@ app.post("/api", async (req, res) => {
     return res.json({ status: "completed" });
   }
 
-  // DEBUG
+  // 📊 DEBUG
   if (action === "get") {
     return res.json(store[session_id] || {});
   }
@@ -109,7 +125,7 @@ app.post("/api", async (req, res) => {
 });
 
 
-// START SERVER
+// 🚀 START SERVER
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
