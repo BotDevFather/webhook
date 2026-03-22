@@ -1,6 +1,12 @@
+const express = require("express");
+const fetch = require("node-fetch");
+
+const app = express();
+app.use(express.json());
+
 let store = {};
 
-// ⏱ CHECK FOR DEAD SESSIONS (fallback safety)
+// ⏱ BACKGROUND CHECK
 setInterval(async () => {
   const now = Date.now();
 
@@ -33,22 +39,8 @@ setInterval(async () => {
 }, 1000);
 
 
-export default async function handler(req, res) {
-
-  // ✅ CORS HEADERS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  // ✅ PREFLIGHT FIX (VERY IMPORTANT)
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  // ❌ Only POST allowed
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Only POST allowed" });
-  }
+// 🌐 API ROUTE
+app.post("/api", async (req, res) => {
 
   const { session_id, user_id, action, watch_ms } = req.body;
 
@@ -56,7 +48,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing session_id" });
   }
 
-  // 🚀 START
+  // START
   if (action === "start") {
     store[session_id] = {
       user_id,
@@ -68,7 +60,7 @@ export default async function handler(req, res) {
     return res.json({ status: "started" });
   }
 
-  // ⏱ PROGRESS
+  // PROGRESS
   if (action === "progress") {
     if (store[session_id]) {
       store[session_id].watch_ms = watch_ms;
@@ -78,7 +70,7 @@ export default async function handler(req, res) {
     return res.json({ status: "updated" });
   }
 
-  // ✅ COMPLETE
+  // COMPLETE
   if (action === "complete") {
     let data = store[session_id];
 
@@ -108,10 +100,18 @@ export default async function handler(req, res) {
     return res.json({ status: "completed" });
   }
 
-  // 📊 DEBUG
+  // DEBUG
   if (action === "get") {
     return res.json(store[session_id] || {});
   }
 
   res.json({ status: "unknown_action" });
-            }
+});
+
+
+// START SERVER
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("🚀 Server running on port", PORT);
+});
