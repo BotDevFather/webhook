@@ -3,13 +3,12 @@ const fetch = require("node-fetch");
 
 const app = express();
 
-// ✅ CORS MIDDLEWARE (VERY IMPORTANT)
+// ✅ CORS
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // 🔥 HANDLE PREFLIGHT
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -22,7 +21,7 @@ app.use(express.json());
 let store = {};
 
 
-// ⏱ BACKGROUND CHECK (WORKS ON RENDER ✅)
+// ⏱ BACKGROUND CHECK (PARTIAL SEND)
 setInterval(async () => {
   const now = Date.now();
 
@@ -31,19 +30,21 @@ setInterval(async () => {
 
     if (!s.completed && now - s.last_update > 2000) {
       try {
-        await fetch("https://webhook.site/31f2dec7-c788-416f-b2ec-08165c421441", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: "partial_ad_data",
-            session_id,
-            user_id: s.user_id,
-            watch_ms: s.watch_ms,
-            completed: false
-          })
-        });
+        if (s.callback_url) {
+          await fetch(s.callback_url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "partial_ad_data",
+              session_id,
+              user_id: s.user_id,
+              watch_ms: s.watch_ms,
+              completed: false
+            })
+          });
 
-        console.log("⚠️ Partial sent:", session_id);
+          console.log("⚠️ Partial sent:", session_id);
+        }
 
       } catch (e) {
         console.log("Webhook error:", e);
@@ -58,7 +59,7 @@ setInterval(async () => {
 // 🌐 API ROUTE
 app.post("/api", async (req, res) => {
 
-  const { session_id, user_id, action, watch_ms } = req.body;
+  const { session_id, user_id, action, watch_ms, callback_url } = req.body;
 
   if (!session_id) {
     return res.status(400).json({ error: "Missing session_id" });
@@ -70,7 +71,8 @@ app.post("/api", async (req, res) => {
       user_id,
       watch_ms: 0,
       last_update: Date.now(),
-      completed: false
+      completed: false,
+      callback_url: callback_url || null
     };
 
     return res.json({ status: "started" });
@@ -81,6 +83,11 @@ app.post("/api", async (req, res) => {
     if (store[session_id]) {
       store[session_id].watch_ms = watch_ms;
       store[session_id].last_update = Date.now();
+
+      // Optional: update callback_url if sent again
+      if (callback_url) {
+        store[session_id].callback_url = callback_url;
+      }
     }
 
     return res.json({ status: "updated" });
@@ -94,21 +101,25 @@ app.post("/api", async (req, res) => {
       data.completed = true;
 
       try {
-        await fetch("https://webhook.site/31f2dec7-c788-416f-b2ec-08165c421441", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: "final_ad_data",
-            session_id,
-            user_id: data.user_id,
-            watch_ms: data.watch_ms,
-            completed: true
-          })
-        });
+        if (data.callback_url) {
+          await fetch(data.callback_url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "final_ad_data",
+              session_id,
+              user_id: data.user_id,
+              watch_ms: data.watch_ms,
+              completed: true
+            })
+          });
 
-        console.log("✅ Final sent:", session_id);
+          console.log("✅ Final sent:", session_id);
+        }
 
-      } catch (e) {}
+      } catch (e) {
+        console.log("Final webhook error:", e);
+      }
 
       delete store[session_id];
     }
