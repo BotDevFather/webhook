@@ -1,15 +1,13 @@
 let store = {};
 
-// ⏱ CHECK EVERY 1 SECOND FOR DEAD SESSIONS
+// ⏱ CHECK FOR DEAD SESSIONS (fallback safety)
 setInterval(async () => {
   const now = Date.now();
 
   for (let session_id in store) {
     const s = store[session_id];
 
-    // ❌ If no update in last 2 seconds → user likely closed app
     if (!s.completed && now - s.last_update > 2000) {
-
       try {
         await fetch("https://webhook.site/31f2dec7-c788-416f-b2ec-08165c421441", {
           method: "POST",
@@ -29,7 +27,7 @@ setInterval(async () => {
         console.log("Webhook error:", e);
       }
 
-      delete store[session_id]; // cleanup
+      delete store[session_id];
     }
   }
 }, 1000);
@@ -37,6 +35,17 @@ setInterval(async () => {
 
 export default async function handler(req, res) {
 
+  // ✅ CORS HEADERS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // ✅ PREFLIGHT FIX (VERY IMPORTANT)
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  // ❌ Only POST allowed
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Only POST allowed" });
   }
@@ -105,4 +114,4 @@ export default async function handler(req, res) {
   }
 
   res.json({ status: "unknown_action" });
-}
+            }
